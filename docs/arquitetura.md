@@ -231,6 +231,8 @@ A validação confirmou:
 * servidor DNS `192.168.10.10`;
 * duração de concessão de 8 dias.
 
+Essa validação foi feita no próprio servidor. O funcionamento de ponta a ponta, com um cliente recebendo endereço e opções, ainda será testado quando o CLIENT-01 for criado.
+
 ---
 
 ## 8. Gateway e conectividade externa
@@ -255,7 +257,7 @@ Até o momento, a infraestrutura possui os seguintes serviços configurados:
 | ------------------------------------- | ---------- | ------------ |
 | Active Directory Domain Services      | `SRV-DC01` | Implementado |
 | DNS                                   | `SRV-DC01` | Implementado |
-| DHCP                                  | `SRV-DC01` | Implementado |
+| DHCP                                  | `SRV-DC01` | Implementado |(teste com cliente pendente)
 | File Server                           | —          | Planejado    |
 | GPO                                   | —          | Planejado    |
 | Automação PowerShell                  | —          | Planejado    |
@@ -427,12 +429,12 @@ A infraestrutura base do laboratório está funcional.
 * domínio `ad.labtech.lab`;
 * DNS;
 * diagnóstico DNS com `dcdiag`;
-* DHCP;
+* DHCP (configuração verificada no servidor; teste com cliente pendente);
 * escopo `LABTECH-LAN`;
 * opções DHCP;
 * documentação inicial da arquitetura.
 
-### Em desenvolvimento
+### Planejado
 
 * estrutura completa de OUs;
 * grupos de segurança;
