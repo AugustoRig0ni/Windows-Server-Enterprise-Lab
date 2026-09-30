@@ -1,0 +1,36 @@
+# Hyper-V: discos, checkpoints e estado das VMs
+*.vhd
+*.vhdx
+*.avhd
+*.avhdx
+*.vmrs
+*.vmcx
+*.vmgs
+*.vsv
+*.bin
+
+# Imagens de instalação e exports
+*.iso
+*.wim
+*.zip
+*.7z
+exports/
+vms/
+
+# Logs gerados pelos scripts
+*.log
+logs/
+
+# Dados sensíveis / arquivos locais
+usuarios-real*.csv
+*.secret
+credentials*
+*.pfx
+*.key
+
+# Sistema e editor
+Thumbs.db
+desktop.ini
+.DS_Store
+.vscode/
+*.tmp
