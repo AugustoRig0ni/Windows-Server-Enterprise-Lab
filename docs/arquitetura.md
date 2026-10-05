@@ -38,6 +38,7 @@ As máquinas virtuais do laboratório são mantidas separadas do diretório do p
 | Servidor principal  | `SRV-DC01`                              |
 | Sistema operacional | Windows Server 2022 Standard Evaluation |
 | Interface gráfica   | Desktop Experience                      |
+| Cliente             | `CLIENT-01`                             |
 
 ---
 
@@ -59,14 +60,14 @@ Gateway:     não configurado
 
 A utilização de uma rede isolada evita que o DHCP do laboratório entre em conflito com o DHCP do roteador da rede doméstica.
 
-### Distribuição planejada de endereços
+### Distribuição de endereços
 
 | Faixa                             | Finalidade                           |
 | --------------------------------- | ------------------------------------ |
 | `192.168.10.1 – 192.168.10.99`    | Infraestrutura e endereços estáticos |
 | `192.168.10.10`                   | Servidor `SRV-DC01`                  |
 | `192.168.10.100 – 192.168.10.200` | Pool DHCP                            |
-| `192.168.10.201 – 192.168.10.254` | Reserva para expansão                |
+| `192.168.10.201 – 192.168.10.254` | Faixa livre para expansão            |
 
 A divisão entre endereços estáticos e endereços distribuídos pelo DHCP facilita a identificação dos componentes da infraestrutura e deixa espaço para futuras expansões.
 
@@ -158,7 +159,7 @@ e:
 dcdiag /test:dns
 ```
 
-O diagnóstico `dcdiag /test:dns` foi executado com sucesso, incluindo os testes de conectividade, DNS do domínio e partições do Active Directory.
+O diagnóstico `dcdiag /test:dns` foi executado com sucesso.
 
 ---
 
@@ -208,7 +209,7 @@ A duração padrão da concessão DHCP permanece configurada em:
 8 dias
 ```
 
-### Validação
+### Validação no servidor
 
 O escopo foi validado por meio do PowerShell:
 
@@ -231,7 +232,14 @@ A validação confirmou:
 * servidor DNS `192.168.10.10`;
 * duração de concessão de 8 dias.
 
-Essa validação foi feita no próprio servidor. O funcionamento de ponta a ponta, com um cliente recebendo endereço e opções, ainda será testado quando o CLIENT-01 for criado.
+### Validação com o cliente
+
+O funcionamento de ponta a ponta foi testado com o `CLIENT-01`:
+
+* o cliente recebeu `192.168.10.101` automaticamente via DHCP;
+* o cliente recebeu `192.168.10.10` como servidor DNS;
+* a concessão foi consultada no servidor com `Get-DhcpServerv4Lease -ScopeId 192.168.10.0`;
+* a configuração recebida foi conferida no cliente com `ipconfig /all`.
 
 ---
 
@@ -249,19 +257,43 @@ Caso seja necessário adicionar conectividade externa futuramente, será necess�
 
 ---
 
-## 9. Serviços implementados
+## 9. Serviços e componentes implementados
 
-Até o momento, a infraestrutura possui os seguintes serviços configurados:
+Até o momento, a infraestrutura possui os seguintes componentes configurados:
 
-| Serviço                               | Servidor   | Status       |
-| ------------------------------------- | ---------- | ------------ |
-| Active Directory Domain Services      | `SRV-DC01` | Implementado |
-| DNS                                   | `SRV-DC01` | Implementado |
-| DHCP                                  | `SRV-DC01` | Implementado |(teste com cliente pendente)
-| File Server                           | —          | Planejado    |
-| GPO                                   | —          | Planejado    |
-| Automação PowerShell                  | —          | Planejado    |
-| Cliente Windows ingressado no domínio | —          | Planejado    |
+| Componente                            | Servidor    | Status       |
+| ------------------------------------- | ----------- | ------------ |
+| Active Directory Domain Services      | `SRV-DC01`  | Implementado |
+| DNS                                   | `SRV-DC01`  | Implementado |
+| DHCP                                  | `SRV-DC01`  | Implementado |
+| Cliente Windows ingressado no domínio | `CLIENT-01` | Implementado |
+| File Server                           | —           | Planejado    |
+| GPO                                   | —           | Planejado    |
+| Automação PowerShell                  | —           | Planejado    |
+
+### 9.1 Cliente Windows (`CLIENT-01`)
+
+O `CLIENT-01` é uma máquina virtual no Hyper-V, conectada ao `LAB-SWITCH`.
+
+Estado atual:
+
+* recebeu `192.168.10.101` via DHCP;
+* utiliza `192.168.10.10` como servidor DNS;
+* resolve o domínio `ad.labtech.lab`;
+* ingressou no domínio `ad.labtech.lab`;
+* teve o canal seguro com o domínio validado com `Test-ComputerSecureChannel`.
+
+Antes do ingresso no domínio, o fuso horário e o horário do servidor e do cliente foram alinhados.
+
+Comandos utilizados na validação a partir do cliente:
+
+```powershell
+ipconfig /all
+Test-NetConnection 192.168.10.10 -Port 53
+Resolve-DnsName ad.labtech.lab -Server 192.168.10.10 -Type A
+Get-ComputerInfo | Select-Object CsName, CsDomain, CsDomainRole
+Test-ComputerSecureChannel -Verbose
+```
 
 ---
 
@@ -310,16 +342,13 @@ Financeiro  → F:
 
 ### 10.3 Cliente Windows
 
-Será criada uma máquina virtual cliente conectada ao `LAB-SWITCH`.
+O `CLIENT-01` já recebe endereço via DHCP, recebe o servidor DNS, resolve o domínio e ingressou no domínio (ver seção 9.1).
 
-O cliente deverá:
+Etapas ainda pendentes:
 
-1. receber endereço IP via DHCP;
-2. receber o servidor DNS `192.168.10.10`;
-3. resolver o domínio `ad.labtech.lab`;
-4. ingressar no domínio;
-5. receber políticas de grupo;
-6. acessar os compartilhamentos conforme as permissões configuradas.
+1. mover o computador para a OU `Computadores`;
+2. receber políticas de grupo;
+3. acessar os compartilhamentos conforme as permissões configuradas.
 
 ---
 
@@ -429,9 +458,12 @@ A infraestrutura base do laboratório está funcional.
 * domínio `ad.labtech.lab`;
 * DNS;
 * diagnóstico DNS com `dcdiag`;
-* DHCP (configuração verificada no servidor; teste com cliente pendente);
+* DHCP;
 * escopo `LABTECH-LAN`;
 * opções DHCP;
+* `CLIENT-01` recebendo endereço e DNS via DHCP;
+* `CLIENT-01` ingressado no domínio;
+* canal seguro entre cliente e domínio;
 * documentação inicial da arquitetura.
 
 ### Planejado
@@ -439,11 +471,11 @@ A infraestrutura base do laboratório está funcional.
 * estrutura completa de OUs;
 * grupos de segurança;
 * usuários;
+* movimentação do `CLIENT-01` para a OU `Computadores`;
 * File Server;
 * permissões NTFS;
 * compartilhamentos;
 * GPOs;
-* cliente Windows;
 * automação PowerShell;
 * cenários de troubleshooting;
 * documentação final e evidências.
@@ -469,7 +501,7 @@ A arquitetura atual pode ser representada da seguinte forma:
                  ┌───────┴───────┐
                  │               │
              SRV-DC01        CLIENT-01
-           192.168.10.10     DHCP futuro
+           192.168.10.10    192.168.10.101
                  │
         ┌────────┼────────┐
         │        │        │
@@ -480,7 +512,7 @@ A arquitetura atual pode ser representada da seguinte forma:
           ad.labtech.lab
 ```
 
-O `CLIENT-01` ainda será implementado nas próximas etapas do laboratório.
+O `CLIENT-01` está conectado ao `LAB-SWITCH`, recebe endereço via DHCP e é membro do domínio.
 
 ---
 

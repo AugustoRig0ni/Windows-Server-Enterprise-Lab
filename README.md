@@ -6,7 +6,7 @@ A ideia é praticar administração de servidores, redes e serviços de infraest
 
 Vou construindo aos poucos e só avanço depois de validar a etapa anterior.
 
-**Onde estou:** AD, DNS e DHCP estão implementados no servidor. O DHCP ainda não foi testado com um cliente de verdade. Cliente no domínio, File Server, GPOs e scripts ainda não foram feitos.
+**Onde estou:** AD, DNS e DHCP estão implementados e validados no servidor. O DHCP foi testado com o `CLIENT-01`, uma VM no Hyper-V, que recebeu endereço via DHCP e ingressou no domínio `ad.labtech.lab`. OUs, grupos, usuários, File Server, GPOs e scripts ainda não foram implementados.
 
 **Sobre a documentação:** usei IA para estruturar a documentação deste projeto. A implementação e as validações no laboratório foram feitas por mim.
 
@@ -37,7 +37,7 @@ Os outros documentos, como troubleshooting e detalhes de serviços, serão adici
              ┌────────┴────────┐
              │                 │
          SRV-DC01          CLIENT-01
-       192.168.10.10       (ainda não criado)
+       192.168.10.10       192.168.10.101
              │
       ┌──────┼──────┐
      AD DS  DNS   DHCP
@@ -53,7 +53,7 @@ Os outros documentos, como troubleshooting e detalhes de serviços, serão adici
 | DNS           | `192.168.10.10`                                                          |
 | IPs estáticos | `.1` a `.99` (o servidor é o `.10`)                                      |
 | Pool DHCP     | `.100` a `.200` (101 endereços)                                          |
-| Reserva       | `.201` a `.254`                                                          |
+| Faixa livre   | `.201` a `.254` (expansão futura)                                        |
 
 ### Estrutura de OUs e grupos planejada
 
@@ -74,30 +74,54 @@ LABTECH
 
 ## Andamento
 
-| Etapa                                    | Status                                                         |
-| ---------------------------------------- | -------------------------------------------------------------- |
-| Hyper-V e switch `LAB-SWITCH`            | Feito                                                          |
-| Windows Server 2022 com IP estático      | Feito                                                          |
-| Active Directory (`ad.labtech.lab`)      | Feito                                                          |
-| DNS                                      | Feito e validado com `dcdiag /test:dns`                        |
-| DHCP (escopo `LABTECH-LAN`)              | Configurado e verificado no servidor; falta testar com cliente |
-| OUs, grupos e usuários                   | Não feito                                                      |
-| `CLIENT-01` no domínio                   | Não feito                                                      |
-| File Server e permissões NTFS            | Não feito                                                      |
-| Group Policy                             | Não feito                                                      |
-| Script PowerShell de criação de usuários | Não feito                                                      |
-| Cenários de troubleshooting              | Não feito                                                      |
+| Etapa                                    | Status                                  |
+| ---------------------------------------- | --------------------------------------- |
+| Hyper-V e switch `LAB-SWITCH`            | Feito                                   |
+| Windows Server 2022 com IP estático      | Feito                                   |
+| Active Directory (`ad.labtech.lab`)      | Feito                                   |
+| DNS                                      | Feito e validado com `dcdiag /test:dns` |
+| DHCP (escopo `LABTECH-LAN`)              | Feito e validado com o cliente          |
+| `CLIENT-01` recebendo IP via DHCP        | Feito                                   |
+| `CLIENT-01` no domínio                   | Feito e validado                        |
+| Canal seguro entre cliente e domínio     | Feito e validado                        |
+| OUs, grupos e usuários                   | Não feito                               |
+| File Server e permissões NTFS            | Não feito                               |
+| Group Policy                             | Não feito                               |
+| Script PowerShell de criação de usuários | Não feito                               |
+| Cenários de troubleshooting              | Não feito                               |
 
 ### Comandos usados na validação até agora
 
 ```powershell
+# No SRV-DC01
 nslookup ad.labtech.lab
 dcdiag /test:dns
 Get-DhcpServerv4Scope
 Get-DhcpServerv4OptionValue -ScopeId 192.168.10.0
+Get-DhcpServerv4Lease -ScopeId 192.168.10.0
+
+# No CLIENT-01
+ipconfig /all
+Test-NetConnection 192.168.10.10 -Port 53
+Resolve-DnsName ad.labtech.lab -Server 192.168.10.10 -Type A
+Get-ComputerInfo | Select-Object CsName, CsDomain, CsDomainRole
+Test-ComputerSecureChannel -Verbose
+whoami
 ```
 
-A validação do DHCP realizada até o momento foi feita no próprio servidor. O funcionamento de ponta a ponta será testado quando o `CLIENT-01` for criado.
+### Validações realizadas
+
+- `SRV-DC01` recebeu IP estático `192.168.10.10`.
+- O domínio `ad.labtech.lab` foi criado e validado.
+- O DNS foi validado com `dcdiag /test:dns`.
+- O escopo DHCP `LABTECH-LAN` foi criado e ativado.
+- O `CLIENT-01` recebeu `192.168.10.101` automaticamente via DHCP.
+- O cliente recebeu `192.168.10.10` como servidor DNS.
+- A resolução direta de `ad.labtech.lab` retornou `192.168.10.10`.
+- A porta TCP 53 do servidor DNS foi validada a partir do cliente.
+- O `CLIENT-01` ingressou no domínio `ad.labtech.lab`.
+- O canal seguro entre o cliente e o domínio foi validado com sucesso.
+- O fuso horário e o horário do servidor e do cliente foram alinhados antes do ingresso no domínio.
 
 ---
 
@@ -147,9 +171,10 @@ Validação
 
 ## O que falta fazer
 
-* Criar o `CLIENT-01` e confirmar que ele recebe IP e DNS pelo DHCP
-* Ingressar o cliente no domínio
-* Criar OUs, grupos e usuários
+* Criar a estrutura de OUs e validar no Active Directory
+* Criar os grupos de segurança
+* Criar os usuários
+* Mover o `CLIENT-01` para a OU `Computadores`
 * Criar o File Server e validar as permissões
 * Aplicar GPOs
 * Escrever o script `create-users.ps1` para criação de usuários a partir de CSV, sem senhas armazenadas no arquivo
