@@ -1,30 +1,28 @@
 # Windows Server Enterprise Lab
 
-Laboratório de Windows Server que estou montando no Hyper-V para simular a infraestrutura de uma empresa pequena, a **LABTECH**.
+Laboratório de infraestrutura Windows Server que montei no Hyper-V para simular a rede de uma empresa pequena, a **LABTECH**. O ambiente reúne Active Directory, DNS, DHCP, servidor de arquivos com permissões por departamento, GPOs e backup com teste de recuperação.
 
-A ideia é praticar administração de servidores, redes e serviços de infraestrutura, começando por Active Directory, DNS e DHCP e evoluindo posteriormente para permissões, GPO, PowerShell e troubleshooting.
-
-Vou construindo aos poucos e só avanço depois de validar a etapa anterior.
-
-**Onde estou:** AD, DNS e DHCP estão implementados e validados no servidor. O DHCP foi testado com o `CLIENT-01`, uma VM no Hyper-V, que recebeu endereço via DHCP e ingressou no domínio `ad.labtech.lab`. OUs, grupos, usuários, File Server, GPOs e scripts ainda não foram implementados.
+**Status:** versão 1 concluída e validada (novembro de 2026). O próximo passo é reconstruir o laboratório do zero e evoluí-lo com firewall dedicado (pfSense), monitoramento (Zabbix) e automação em PowerShell. Essas evoluções ainda **não foram implementadas** (veja [`docs/evolucoes-futuras.md`](docs/evolucoes-futuras.md)).
 
 **Sobre a documentação:** usei IA para estruturar a documentação deste projeto. A implementação e as validações no laboratório foram feitas por mim.
 
 ---
 
-## Documentação
+## O que foi implementado
 
-| Arquivo                | O que tem                               |
-| ---------------------- | --------------------------------------- |
-| `docs/planejamento.md` | O plano inicial do laboratório          |
-| `docs/arquitetura.md`  | Como o ambiente está montado atualmente |
-| `docs/decisoes.md`     | Por que escolhi cada configuração       |
-
-Os outros documentos, como troubleshooting e detalhes de serviços, serão adicionados conforme forem sendo implementados e validados.
+| Área | O que foi feito | Documento |
+| ---- | --------------- | --------- |
+| Virtualização e rede | Hyper-V, switch interno `LAB-SWITCH`, rede isolada `192.168.10.0/24` | [`arquitetura.md`](docs/arquitetura.md) |
+| Active Directory | Domínio `ad.labtech.lab`, OUs, 3 usuários, 3 grupos de segurança, cliente no domínio | [`active-directory.md`](docs/active-directory.md) |
+| DNS e DHCP | DNS integrado ao AD, escopo `LABTECH-LAN` autorizado, cliente recebendo endereço | [`dns-dhcp.md`](docs/dns-dhcp.md) |
+| File Server | 4 compartilhamentos SMB, permissões NTFS por grupo | [`file-server.md`](docs/file-server.md) |
+| Group Policy | Mapeamento de unidades por grupo e política de segurança para estações | [`gpo.md`](docs/gpo.md) |
+| Backup | Windows Server Backup (System State + volume C:) e teste de recuperação | [`backup-e-recuperacao.md`](docs/backup-e-recuperacao.md) |
+| Validações | Testes de AD, DNS, DHCP, permissões, GPO, reinicialização e backup | [`testes-e-validacoes.md`](docs/testes-e-validacoes.md) |
 
 ---
 
-## Como está o ambiente
+## Ambiente
 
 ```text
                  HOST WINDOWS
@@ -37,149 +35,68 @@ Os outros documentos, como troubleshooting e detalhes de serviços, serão adici
              ┌────────┴────────┐
              │                 │
          SRV-DC01          CLIENT-01
-       192.168.10.10       192.168.10.101
+       192.168.10.10       192.168.10.101 (DHCP)
              │
-      ┌──────┼──────┐
-     AD DS  DNS   DHCP
+   ┌────┬────┼─────┐
+ AD DS  DNS  DHCP  File Server
              │
       ad.labtech.lab
 ```
 
-| Item          | Valor                                                                    |
-| ------------- | ------------------------------------------------------------------------ |
-| Servidor      | `SRV-DC01`, Windows Server 2022 Standard Evaluation (Desktop Experience) |
-| Domínio       | `ad.labtech.lab`                                                         |
-| Rede          | `192.168.10.0/24`, isolada, sem gateway                                  |
-| DNS           | `192.168.10.10`                                                          |
-| IPs estáticos | `.1` a `.99` (o servidor é o `.10`)                                      |
-| Pool DHCP     | `.100` a `.200` (101 endereços)                                          |
-| Faixa livre   | `.201` a `.254` (expansão futura)                                        |
-
-### Estrutura de OUs e grupos planejada
-
-```text
-LABTECH
-├── Usuarios
-│   ├── TI
-│   ├── RH
-│   └── Financeiro
-├── Computadores
-└── Grupos
-    ├── GRP-TI
-    ├── GRP-RH
-    └── GRP-FINANCEIRO
-```
+| Item | Valor |
+| ---- | ----- |
+| Servidor | `SRV-DC01`, Windows Server 2022 Standard Evaluation (Desktop Experience), 4 GB de RAM |
+| Funções do servidor | AD DS, DNS, DHCP e File Server |
+| Cliente | Hostname `DESKTOP-81PP8GF`, identificado como `CLIENT-01` neste projeto; IP por DHCP |
+| Domínio | `ad.labtech.lab` (NetBIOS `LABTECH`) |
+| Rede | `192.168.10.0/24`, isolada, sem gateway |
+| Pool DHCP | `192.168.10.100` a `192.168.10.200` |
 
 ---
 
-## Andamento
+## Resumo das validações
 
-| Etapa                                    | Status                                  |
-| ---------------------------------------- | --------------------------------------- |
-| Hyper-V e switch `LAB-SWITCH`            | Feito                                   |
-| Windows Server 2022 com IP estático      | Feito                                   |
-| Active Directory (`ad.labtech.lab`)      | Feito                                   |
-| DNS                                      | Feito e validado com `dcdiag /test:dns` |
-| DHCP (escopo `LABTECH-LAN`)              | Feito e validado com o cliente          |
-| `CLIENT-01` recebendo IP via DHCP        | Feito                                   |
-| `CLIENT-01` no domínio                   | Feito e validado                        |
-| Canal seguro entre cliente e domínio     | Feito e validado                        |
-| OUs, grupos e usuários                   | Não feito                               |
-| File Server e permissões NTFS            | Não feito                               |
-| Group Policy                             | Não feito                               |
-| Script PowerShell de criação de usuários | Não feito                               |
-| Cenários de troubleshooting              | Não feito                               |
+- Três usuários testados no cliente: cada um acessa a pasta `Publico` e a do próprio departamento, cria e exclui arquivos, e é bloqueado nas pastas dos outros departamentos.
+- Unidades de rede mapeadas corretamente por grupo (`P:` para todos, mais `T:`, `R:` ou `F:`).
+- Política de segurança das estações aplicada e conferida com `gpresult`.
+- Servidor e cliente reiniciados: serviços saudáveis e acessos revalidados.
+- Backup concluído com sucesso (status `SUCCESSFUL`) e recuperação do volume `C:` para outra pasta (status `Completed`).
 
-### Comandos usados na validação até agora
-
-```powershell
-# No SRV-DC01
-nslookup ad.labtech.lab
-dcdiag /test:dns
-Get-DhcpServerv4Scope
-Get-DhcpServerv4OptionValue -ScopeId 192.168.10.0
-Get-DhcpServerv4Lease -ScopeId 192.168.10.0
-
-# No CLIENT-01
-ipconfig /all
-Test-NetConnection 192.168.10.10 -Port 53
-Resolve-DnsName ad.labtech.lab -Server 192.168.10.10 -Type A
-Get-ComputerInfo | Select-Object CsName, CsDomain, CsDomainRole
-Test-ComputerSecureChannel -Verbose
-whoami
-```
-
-### Validações realizadas
-
-- `SRV-DC01` recebeu IP estático `192.168.10.10`.
-- O domínio `ad.labtech.lab` foi criado e validado.
-- O DNS foi validado com `dcdiag /test:dns`.
-- O escopo DHCP `LABTECH-LAN` foi criado e ativado.
-- O `CLIENT-01` recebeu `192.168.10.101` automaticamente via DHCP.
-- O cliente recebeu `192.168.10.10` como servidor DNS.
-- A resolução direta de `ad.labtech.lab` retornou `192.168.10.10`.
-- A porta TCP 53 do servidor DNS foi validada a partir do cliente.
-- O `CLIENT-01` ingressou no domínio `ad.labtech.lab`.
-- O canal seguro entre o cliente e o domínio foi validado com sucesso.
-- O fuso horário e o horário do servidor e do cliente foram alinhados antes do ingresso no domínio.
+Detalhes em [`docs/testes-e-validacoes.md`](docs/testes-e-validacoes.md).
 
 ---
 
-## Problemas que apareceram
+## Problemas encontrados
 
-Aqui vou registrar somente problemas que realmente acontecerem durante a implementação: o sintoma, como investiguei, a causa e a correção.
-
-| Data | Problema                | Causa | Solução |
-| ---- | ----------------------- | ----- | ------- |
-| —    | Nenhum registrado ainda | —     | —       |
-
-Os problemas ocorridos durante a configuração também podem ser documentados posteriormente como lições aprendidas, quando houver informações úteis para reproduzir ou entender a situação.
+Um problema real foi registrado: durante a preparação do cliente para o domínio, ele apresentava horário americano, enquanto o computador físico estava no horário de Brasília. O horário do cliente foi ajustado e o problema foi resolvido. A causa técnica original não foi registrada. Detalhes em [`docs/testes-e-validacoes.md`](docs/testes-e-validacoes.md).
 
 ---
 
-## Cenários que vou simular
+## Limitações conhecidas
 
-Além dos problemas reais, pretendo quebrar o ambiente de propósito para treinar diagnóstico. Quando fizer isso, vou deixar claro na documentação que foi uma simulação.
-
-* Cliente com DNS errado
-* Cliente sem IP do DHCP
-* GPO que não aplica
-* Permissão NTFS errada e acesso negado a compartilhamento
-* Cliente fora do domínio
-* Falha de resolução de nomes
-* Cliente sem conseguir falar com o Domain Controller
-
-Cada caso seguirá o mesmo roteiro:
-
-```text
-Sintoma
-   ↓
-Hipótese
-   ↓
-Diagnóstico
-   ↓
-Comandos utilizados
-   ↓
-Causa
-   ↓
-Correção
-   ↓
-Validação
-```
+- O disco de backup (VHDX) está no mesmo computador físico que hospeda a VM. Serve para o laboratório, mas não protege contra perda do host.
+- O backup foi pontual, sem rotina recorrente. O teste de recuperação cobriu arquivos do volume `C:` em outra pasta. O System State e o Active Directory não tiveram restauração completa testada.
+- Um único servidor concentra AD DS, DNS, DHCP e File Server. Em produção, as funções seriam separadas.
+- A rede é isolada, sem acesso à Internet.
+- O Windows Server Evaluation tem prazo de 180 dias (instalado em 30/09/2026).
+- **Não implementados:** firewall dedicado, segmentação de rede, monitoramento centralizado e automação de usuários.
 
 ---
 
-## O que falta fazer
+## Documentação
 
-* Criar a estrutura de OUs e validar no Active Directory
-* Criar os grupos de segurança
-* Criar os usuários
-* Mover o `CLIENT-01` para a OU `Computadores`
-* Criar o File Server e validar as permissões
-* Aplicar GPOs
-* Escrever o script `create-users.ps1` para criação de usuários a partir de CSV, sem senhas armazenadas no arquivo
-* Executar os cenários de troubleshooting
-* Manter a documentação e as evidências em dia
+| Arquivo | Conteúdo |
+| ------- | -------- |
+| [`docs/planejamento.md`](docs/planejamento.md) | Plano inicial (documento histórico, não atualizado) |
+| [`docs/arquitetura.md`](docs/arquitetura.md) | Visão geral do ambiente |
+| [`docs/decisoes.md`](docs/decisoes.md) | Decisões de projeto e motivos |
+| [`docs/active-directory.md`](docs/active-directory.md) | Domínio, OUs, usuários e grupos |
+| [`docs/dns-dhcp.md`](docs/dns-dhcp.md) | Configuração de DNS e DHCP |
+| [`docs/file-server.md`](docs/file-server.md) | Compartilhamentos e permissões |
+| [`docs/gpo.md`](docs/gpo.md) | Políticas de grupo |
+| [`docs/backup-e-recuperacao.md`](docs/backup-e-recuperacao.md) | Backup e teste de recuperação |
+| [`docs/testes-e-validacoes.md`](docs/testes-e-validacoes.md) | Resultados dos testes |
+| [`docs/evolucoes-futuras.md`](docs/evolucoes-futuras.md) | O que ainda não foi feito |
 
 ---
 
@@ -192,30 +109,20 @@ Windows-Server-Enterprise-Lab/
 └── docs/
     ├── planejamento.md
     ├── arquitetura.md
-    └── decisoes.md
+    ├── decisoes.md
+    ├── active-directory.md
+    ├── dns-dhcp.md
+    ├── file-server.md
+    ├── gpo.md
+    ├── backup-e-recuperacao.md
+    ├── testes-e-validacoes.md
+    └── evolucoes-futuras.md
 ```
-
-Mais pastas e arquivos, como `scripts/`, `screenshots/` e outros documentos, serão adicionados quando houver conteúdo.
 
 ---
 
 ## Tecnologias
 
-**Já em uso:**
+Windows Server 2022, Hyper-V, Active Directory Domain Services, DNS, DHCP, SMB, NTFS, Group Policy, Windows Server Backup, Git e GitHub.
 
-* Windows Server 2022
-* Active Directory
-* DNS
-* DHCP
-* Hyper-V
-* Git
-* GitHub
-
-**Previstas:**
-
-* Group Policy
-* NTFS
-* SMB
-* PowerShell
-
-O laboratório é um ambiente de estudo e as configurações deverão ser adaptadas antes de qualquer utilização em um ambiente de produção.
+O laboratório é um ambiente de estudo e as configurações devem ser adaptadas antes de qualquer uso em produção.

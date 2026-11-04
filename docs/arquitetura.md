@@ -2,55 +2,46 @@
 
 ## 1. Visão geral
 
-Este laboratório simula uma infraestrutura de TI corporativa de pequeno porte utilizando Microsoft Windows Server e Hyper-V.
+O laboratório simula uma infraestrutura corporativa de pequeno porte (empresa fictícia **LABTECH**) com Windows Server 2022 e Hyper-V, em uma rede virtual isolada.
 
-O ambiente foi projetado para representar uma rede corporativa isolada, com serviços centralizados de autenticação, resolução de nomes e distribuição automática de endereços IP.
+Um único servidor, `SRV-DC01`, concentra os serviços de identidade, nomes, endereçamento e arquivos. Um cliente Windows ingressado no domínio é usado para validar o ambiente.
 
-A infraestrutura está sendo construída de forma incremental, permitindo implementar, testar, documentar e validar cada serviço antes da próxima etapa.
-
-### Objetivos da arquitetura
-
-* Centralizar o gerenciamento de usuários e computadores;
-* Utilizar o Active Directory Domain Services (AD DS) para autenticação e organização do ambiente;
-* Utilizar DNS para resolução de nomes internos;
-* Utilizar DHCP para distribuição automática de endereços IP;
-* Implementar posteriormente compartilhamentos de arquivos e permissões;
-* Aplicar políticas de domínio por meio de Group Policy Objects (GPOs);
-* Automatizar tarefas administrativas utilizando PowerShell;
-* Criar cenários de troubleshooting para simular problemas comuns de infraestrutura.
+Este documento é a visão geral. Os detalhes de cada serviço estão nos documentos específicos, listados na seção 5.
 
 ---
 
-## 2. Ambiente de virtualização
+## 2. Virtualização
 
-O laboratório utiliza o **Hyper-V** como plataforma de virtualização.
+O ambiente usa **Microsoft Hyper-V**. As máquinas virtuais ficam fora da pasta do projeto, para que discos e imagens de instalação não sejam versionados no GitHub.
 
-As máquinas virtuais do laboratório são mantidas separadas do diretório do projeto GitHub para evitar que arquivos grandes, como discos virtuais e imagens de instalação, sejam versionados.
+| Máquina | Sistema | Função |
+| ------- | ------- | ------ |
+| `SRV-DC01` | Windows Server 2022 Standard Evaluation (Desktop Experience) | AD DS, DNS, DHCP e File Server |
+| `CLIENT-01` | Windows cliente | Estação do domínio usada nos testes |
 
-### Estrutura atual
+### SRV-DC01
 
-| Componente          | Configuração                            |
-| ------------------- | --------------------------------------- |
-| Hypervisor          | Microsoft Hyper-V                       |
-| Switch virtual      | `LAB-SWITCH`                            |
-| Tipo do switch      | Internal                                |
-| Rede                | `192.168.10.0/24`                       |
-| Servidor principal  | `SRV-DC01`                              |
-| Sistema operacional | Windows Server 2022 Standard Evaluation |
-| Interface gráfica   | Desktop Experience                      |
-| Cliente             | `CLIENT-01`                             |
+| Item | Configuração |
+| ---- | ------------ |
+| Memória | 4 GB |
+| Disco principal | VHDX de 60 GB (volume `C:`) |
+| Disco de backup | VHDX dinâmico de aproximadamente 40 GB, volume `E:` (rótulo `BACKUP`, NTFS), usado exclusivamente para backups |
+| Rede | `192.168.10.10/24`, sem gateway, DNS `192.168.10.10` |
+
+### CLIENT-01
+
+| Item | Configuração |
+| ---- | ------------ |
+| Hostname | `DESKTOP-81PP8GF` (identificado como `CLIENT-01` neste projeto) |
+| Endereço | `192.168.10.101`, obtido por DHCP |
+| Domínio | `ad.labtech.lab` |
+| Objeto no AD | Movido para a OU `Computadores` do laboratório |
 
 ---
 
-## 3. Topologia de rede
+## 3. Rede
 
-O laboratório utiliza uma rede virtual interna criada no Hyper-V.
-
-O switch `LAB-SWITCH` é do tipo **Internal**, permitindo comunicação entre o sistema operacional hospedeiro e as máquinas virtuais conectadas ao switch.
-
-A rede não possui conexão direta com a rede física ou com a Internet neste momento.
-
-### Sub-rede
+O switch virtual `LAB-SWITCH` é do tipo **Internal**: permite a comunicação entre as VMs e o host, sem conexão com a rede física ou com a Internet.
 
 ```text
 Rede:        192.168.10.0/24
@@ -58,466 +49,79 @@ Máscara:     255.255.255.0
 Gateway:     não configurado
 ```
 
-A utilização de uma rede isolada evita que o DHCP do laboratório entre em conflito com o DHCP do roteador da rede doméstica.
+A rede isolada evita conflito entre o DHCP do laboratório e o do roteador da rede doméstica.
 
-### Distribuição de endereços
-
-| Faixa                             | Finalidade                           |
-| --------------------------------- | ------------------------------------ |
-| `192.168.10.1 – 192.168.10.99`    | Infraestrutura e endereços estáticos |
-| `192.168.10.10`                   | Servidor `SRV-DC01`                  |
-| `192.168.10.100 – 192.168.10.200` | Pool DHCP                            |
-| `192.168.10.201 – 192.168.10.254` | Faixa livre para expansão            |
-
-A divisão entre endereços estáticos e endereços distribuídos pelo DHCP facilita a identificação dos componentes da infraestrutura e deixa espaço para futuras expansões.
+| Faixa | Finalidade |
+| ----- | ---------- |
+| `192.168.10.1 – 192.168.10.99` | Infraestrutura e endereços estáticos (`SRV-DC01` = `.10`) |
+| `192.168.10.100 – 192.168.10.200` | Pool DHCP |
+| `192.168.10.201 – 192.168.10.254` | Faixa livre para expansão |
 
 ---
 
-## 4. Servidor principal
-
-O servidor principal do laboratório é denominado:
-
-```text
-SRV-DC01
-```
-
-Ele atua como controlador de domínio e concentra atualmente os principais serviços de infraestrutura da rede.
-
-### Configuração de rede
-
-| Parâmetro | Valor            |
-| --------- | ---------------- |
-| Hostname  | `SRV-DC01`       |
-| IPv4      | `192.168.10.10`  |
-| Máscara   | `255.255.255.0`  |
-| Gateway   | Não configurado  |
-| DNS       | `192.168.10.10`  |
-| Domínio   | `ad.labtech.lab` |
-
-O endereço IP do servidor é estático para garantir que os demais equipamentos possam localizar de forma consistente os serviços de domínio e DNS.
-
----
-
-## 5. Active Directory Domain Services
-
-O ambiente utiliza o **Active Directory Domain Services (AD DS)** para gerenciamento centralizado de identidade e recursos.
-
-### Domínio
-
-```text
-ad.labtech.lab
-```
-
-O servidor `SRV-DC01` atua como controlador de domínio.
-
-A estrutura lógica planejada para o Active Directory é:
-
-```text
-LABTECH
-│
-├── Usuarios
-│   ├── TI
-│   ├── RH
-│   └── Financeiro
-│
-├── Computadores
-│
-└── Grupos
-    ├── GRP-TI
-    ├── GRP-RH
-    └── GRP-FINANCEIRO
-```
-
-A estrutura organizacional será utilizada posteriormente para facilitar a aplicação de políticas, gerenciamento de usuários e controle de acesso aos recursos da rede.
-
----
-
-## 6. DNS
-
-O DNS é fornecido pelo próprio `SRV-DC01`.
-
-```text
-DNS Server:
-192.168.10.10
-```
-
-O DNS é fundamental para o funcionamento do Active Directory, pois permite que os computadores encontrem os serviços e recursos do domínio por meio de nomes.
-
-O servidor está configurado para utilizar a si próprio como servidor DNS.
-
-### Validação
-
-A configuração foi validada utilizando ferramentas nativas do Windows Server, incluindo:
-
-```powershell
-nslookup ad.labtech.lab
-```
-
-e:
-
-```powershell
-dcdiag /test:dns
-```
-
-O diagnóstico `dcdiag /test:dns` foi executado com sucesso.
-
----
-
-## 7. DHCP
-
-O serviço DHCP foi instalado e configurado no `SRV-DC01`.
-
-O objetivo do DHCP é distribuir automaticamente configurações de rede para os clientes do laboratório.
-
-### Escopo
-
-```text
-Nome:       LABTECH-LAN
-Rede:       192.168.10.0/24
-Início:     192.168.10.100
-Fim:        192.168.10.200
-Máscara:    255.255.255.0
-```
-
-O escopo possui **101 endereços IPv4 disponíveis** para concessão:
-
-```text
-200 - 100 + 1 = 101
-```
-
-### Opções DHCP
-
-Os clientes recebem:
-
-```text
-Domínio DNS:
-ad.labtech.lab
-
-Servidor DNS:
-192.168.10.10
-```
-
-Não foi configurado gateway padrão porque a rede do laboratório permanece isolada e não possui um roteador conectado ao `LAB-SWITCH`.
-
-O WINS também não foi configurado, pois não é necessário para a arquitetura atual baseada em Active Directory e DNS.
-
-### Duração da concessão
-
-A duração padrão da concessão DHCP permanece configurada em:
-
-```text
-8 dias
-```
-
-### Validação no servidor
-
-O escopo foi validado por meio do PowerShell:
-
-```powershell
-Get-DhcpServerv4Scope
-```
-
-As opções DHCP foram verificadas com:
-
-```powershell
-Get-DhcpServerv4OptionValue -ScopeId 192.168.10.0
-```
-
-A validação confirmou:
-
-* escopo ativo;
-* faixa `192.168.10.100–192.168.10.200`;
-* máscara `/24`;
-* domínio DNS `ad.labtech.lab`;
-* servidor DNS `192.168.10.10`;
-* duração de concessão de 8 dias.
-
-### Validação com o cliente
-
-O funcionamento de ponta a ponta foi testado com o `CLIENT-01`:
-
-* o cliente recebeu `192.168.10.101` automaticamente via DHCP;
-* o cliente recebeu `192.168.10.10` como servidor DNS;
-* a concessão foi consultada no servidor com `Get-DhcpServerv4Lease -ScopeId 192.168.10.0`;
-* a configuração recebida foi conferida no cliente com `ipconfig /all`.
-
----
-
-## 8. Gateway e conectividade externa
-
-O laboratório atualmente **não possui gateway padrão configurado**.
-
-Isso é intencional.
-
-A rede foi criada como um ambiente isolado para permitir testes de infraestrutura sem interferir na rede doméstica utilizada pelo computador hospedeiro.
-
-Consequentemente, as máquinas conectadas exclusivamente ao `LAB-SWITCH` podem se comunicar entre si e com o host, mas não possuem acesso direto à Internet por meio dessa rede.
-
-Caso seja necessário adicionar conectividade externa futuramente, será necessário projetar essa alteração de forma que o DHCP do laboratório não entre em conflito com o DHCP da rede física.
-
----
-
-## 9. Serviços e componentes implementados
-
-Até o momento, a infraestrutura possui os seguintes componentes configurados:
-
-| Componente                            | Servidor    | Status       |
-| ------------------------------------- | ----------- | ------------ |
-| Active Directory Domain Services      | `SRV-DC01`  | Implementado |
-| DNS                                   | `SRV-DC01`  | Implementado |
-| DHCP                                  | `SRV-DC01`  | Implementado |
-| Cliente Windows ingressado no domínio | `CLIENT-01` | Implementado |
-| File Server                           | —           | Planejado    |
-| GPO                                   | —           | Planejado    |
-| Automação PowerShell                  | —           | Planejado    |
-
-### 9.1 Cliente Windows (`CLIENT-01`)
-
-O `CLIENT-01` é uma máquina virtual no Hyper-V, conectada ao `LAB-SWITCH`.
-
-Estado atual:
-
-* recebeu `192.168.10.101` via DHCP;
-* utiliza `192.168.10.10` como servidor DNS;
-* resolve o domínio `ad.labtech.lab`;
-* ingressou no domínio `ad.labtech.lab`;
-* teve o canal seguro com o domínio validado com `Test-ComputerSecureChannel`.
-
-Antes do ingresso no domínio, o fuso horário e o horário do servidor e do cliente foram alinhados.
-
-Comandos utilizados na validação a partir do cliente:
-
-```powershell
-ipconfig /all
-Test-NetConnection 192.168.10.10 -Port 53
-Resolve-DnsName ad.labtech.lab -Server 192.168.10.10 -Type A
-Get-ComputerInfo | Select-Object CsName, CsDomain, CsDomainRole
-Test-ComputerSecureChannel -Verbose
-```
-
----
-
-## 10. Próximas etapas da arquitetura
-
-A infraestrutura será expandida progressivamente.
-
-### 10.1 File Server
-
-Será implementado um servidor de arquivos utilizando compartilhamentos separados por departamento.
-
-Estrutura planejada:
-
-```text
-D:\Shares\
-├── TI\
-├── RH\
-├── Financeiro\
-└── Publico\
-```
-
-O acesso será controlado por meio de grupos de segurança do Active Directory e permissões NTFS.
-
----
-
-### 10.2 Group Policy
-
-Serão criadas GPOs para demonstrar gerenciamento centralizado dos computadores do domínio.
-
-Entre as configurações planejadas estão:
-
-* mapeamento de unidades de rede;
-* políticas de segurança;
-* configurações de ambiente;
-* aplicação de configurações por Unidade Organizacional (OU).
-
-Mapeamento planejado:
-
-```text
-TI          → T:
-RH          → R:
-Financeiro  → F:
-```
-
----
-
-### 10.3 Cliente Windows
-
-O `CLIENT-01` já recebe endereço via DHCP, recebe o servidor DNS, resolve o domínio e ingressou no domínio (ver seção 9.1).
-
-Etapas ainda pendentes:
-
-1. mover o computador para a OU `Computadores`;
-2. receber políticas de grupo;
-3. acessar os compartilhamentos conforme as permissões configuradas.
-
----
-
-### 10.4 Automação PowerShell
-
-Será desenvolvido um conjunto de scripts para automatizar tarefas administrativas.
-
-Um dos principais scripts planejados será responsável pela criação de usuários do domínio a partir de um arquivo CSV.
-
-Exemplo conceitual:
-
-```text
-usuarios.csv
-     │
-     ▼
-create-users.ps1
-     │
-     ├── Verificar usuário existente
-     ├── Criar conta
-     ├── Definir atributos
-     ├── Adicionar aos grupos
-     └── Registrar operações
-```
-
----
-
-## 11. Estratégia de validação
-
-Cada serviço implementado será validado antes da continuidade do projeto.
-
-A validação utilizará ferramentas nativas do Windows Server e testes funcionais.
-
-Exemplos:
-
-### Rede
-
-```powershell
-ipconfig
-```
-
-### DNS
-
-```powershell
-nslookup ad.labtech.lab
-```
-
-```powershell
-Resolve-DnsName ad.labtech.lab
-```
-
-### Diagnóstico do Active Directory
-
-```powershell
-dcdiag /test:dns
-```
-
-### DHCP
-
-```powershell
-Get-DhcpServerv4Scope
-```
-
-```powershell
-Get-DhcpServerv4OptionValue -ScopeId 192.168.10.0
-```
-
-### Conectividade
-
-```powershell
-Test-NetConnection
-```
-
-A documentação do projeto deverá registrar tanto a configuração quanto os resultados das validações relevantes.
-
----
-
-## 12. Princípios da arquitetura
-
-A implementação segue alguns princípios para manter o laboratório próximo de um ambiente corporativo real:
-
-* Separação entre endereços estáticos e DHCP;
-* DNS integrado ao Active Directory;
-* Gerenciamento centralizado por domínio;
-* Organização de usuários e computadores por OUs;
-* Controle de acesso baseado em grupos;
-* Separação entre permissões de compartilhamento e NTFS;
-* Automação de tarefas repetitivas com PowerShell;
-* Validação técnica após cada implementação;
-* Documentação das decisões de infraestrutura;
-* Registro de evidências por screenshots;
-* Versionamento da documentação e dos scripts com Git.
-
----
-
-## 13. Estado atual
-
-A infraestrutura base do laboratório está funcional.
-
-### Implementado e validado
-
-* Hyper-V;
-* switch virtual interno `LAB-SWITCH`;
-* Windows Server 2022;
-* hostname `SRV-DC01`;
-* configuração IPv4 estática;
-* Active Directory Domain Services;
-* domínio `ad.labtech.lab`;
-* DNS;
-* diagnóstico DNS com `dcdiag`;
-* DHCP;
-* escopo `LABTECH-LAN`;
-* opções DHCP;
-* `CLIENT-01` recebendo endereço e DNS via DHCP;
-* `CLIENT-01` ingressado no domínio;
-* canal seguro entre cliente e domínio;
-* documentação inicial da arquitetura.
-
-### Planejado
-
-* estrutura completa de OUs;
-* grupos de segurança;
-* usuários;
-* movimentação do `CLIENT-01` para a OU `Computadores`;
-* File Server;
-* permissões NTFS;
-* compartilhamentos;
-* GPOs;
-* automação PowerShell;
-* cenários de troubleshooting;
-* documentação final e evidências.
-
----
-
-## 14. Diagrama lógico
-
-A arquitetura atual pode ser representada da seguinte forma:
+## 4. Diagrama lógico
 
 ```text
                     HOST WINDOWS
                          │
-                         │
                   Hyper-V / Internal
                          │
                     LAB-SWITCH
-                         │
-                         │
                   192.168.10.0/24
-                         │
                          │
                  ┌───────┴───────┐
                  │               │
              SRV-DC01        CLIENT-01
            192.168.10.10    192.168.10.101
                  │
-        ┌────────┼────────┐
-        │        │        │
-       AD DS    DNS      DHCP
-        │        │        │
-        └────────┴────────┘
+     ┌─────┬─────┼──────┐
+   AD DS  DNS  DHCP  File Server
                  │
           ad.labtech.lab
 ```
 
-O `CLIENT-01` está conectado ao `LAB-SWITCH`, recebe endereço via DHCP e é membro do domínio.
+---
+
+## 5. Serviços implementados
+
+| Serviço | Servidor | Documento |
+| ------- | -------- | --------- |
+| Active Directory Domain Services | `SRV-DC01` | [active-directory.md](active-directory.md) |
+| DNS | `SRV-DC01` | [dns-dhcp.md](dns-dhcp.md) |
+| DHCP | `SRV-DC01` | [dns-dhcp.md](dns-dhcp.md) |
+| File Server (SMB + NTFS) | `SRV-DC01` | [file-server.md](file-server.md) |
+| Group Policy | `SRV-DC01` | [gpo.md](gpo.md) |
+| Windows Server Backup | `SRV-DC01` | [backup-e-recuperacao.md](backup-e-recuperacao.md) |
+
+Resultados dos testes: [testes-e-validacoes.md](testes-e-validacoes.md).
 
 ---
 
-## 15. Observação sobre evolução
+## 6. Limitações da arquitetura
 
-Esta documentação representa o estado da arquitetura durante a construção do laboratório e será atualizada conforme novos serviços forem implementados.
+- **Ponto único:** um servidor concentra todas as funções. É uma simplificação de laboratório (ver decisão D04 em [decisoes.md](decisoes.md)).
+- **Backup no mesmo host:** o VHDX de backup está no computador físico que hospeda a VM.
+- **Sem Internet:** a rede isolada impede, por exemplo, o uso do Windows Update.
+- **Licença de avaliação:** Windows Server Evaluation, instalado em 30/09/2026 (180 dias).
 
-Alterações relevantes de rede, serviços, estrutura do Active Directory e políticas deverão ser registradas neste documento para manter a arquitetura documentada de acordo com o ambiente real.
+Não fazem parte desta versão: firewall dedicado, segmentação de rede, monitoramento centralizado e automação de usuários (ver [evolucoes-futuras.md](evolucoes-futuras.md)).
+
+---
+
+## 7. Princípios seguidos
+
+- Separação entre endereços estáticos e DHCP;
+- DNS integrado ao Active Directory;
+- Gerenciamento centralizado por domínio;
+- Organização de usuários e computadores por OUs;
+- Controle de acesso baseado em grupos;
+- Separação entre permissões de compartilhamento (SMB) e NTFS;
+- Validação técnica após cada etapa;
+- Registro das decisões de infraestrutura;
+- Versionamento da documentação com Git.
+
+---
+
+## 8. Observação sobre evolução
+
+Este documento descreve a versão 1 do laboratório. O histórico de versões anteriores (incluindo o estado em que o cliente ainda não existia) está no histórico de commits do repositório.

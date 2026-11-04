@@ -20,13 +20,13 @@ O `SRV-DC01` usa `192.168.10.10/24`, com o DNS apontando para ele mesmo.
 
 ## D03 — Faixa estática separada da faixa DHCP
 
-`.1` a `.99` para infraestrutura, `.100` a `.200` para DHCP (101 endereços) e `.201` a `.254` de reserva.
+`.1` a `.99` para infraestrutura, `.100` a `.200` para DHCP (101 endereços) e `.201` a `.254` livres para expansão.
 
 - **Motivo:** fica fácil identificar o que é infraestrutura e sobra espaço para crescer.
 
 ## D04 — DC, DHCP e File Server no mesmo servidor
 
-Concentrei AD DS, DNS, DHCP e, mais adiante, o File Server no `SRV-DC01`.
+Concentrei AD DS, DNS, DHCP e File Server no `SRV-DC01`.
 
 - **Alternativa:** servidores separados, por exemplo um `SRV-FS01` só para arquivos.
 - **Motivo:** simplificar o laboratório, com menos VMs e menos consumo de hardware.
@@ -44,7 +44,7 @@ Concentrei AD DS, DNS, DHCP e, mais adiante, o File Server no `SRV-DC01`.
 
 ## D07 — Concessão DHCP mantida em 8 dias
 
-Deixei o padrão do Windows Server.
+Deixei o padrão do Windows Server (confirmado no ambiente: `8.00:00:00`).
 
 - **Motivo:** o laboratório tem poucos clientes e não precisa renovar concessões com frequência.
 - **Observação:** em redes com muita troca de dispositivos, concessões menores são comuns.
@@ -65,3 +65,24 @@ Mantenho as VMs separadas da pasta do projeto e ignoro `.vhdx`, `.iso` e similar
 - **Motivo:** uso de estudo, sem custo de licença.
 - **Instalado em:** 30/09/2026, 10:17:48 (`(Get-CimInstance Win32_OperatingSystem).InstallDate`).
 - **Prazo estimado:** cerca de 29/03/2027. O tempo exato dá para conferir com `slmgr /dlv`.
+
+## D11 — Disco virtual dedicado ao backup
+
+- **Decisão:** criar um segundo VHDX dinâmico, de cerca de 40 GB, usado exclusivamente para backups (`E:`, rótulo `BACKUP`).
+- **Limitação:** o VHDX está no mesmo computador físico que hospeda a VM. Serve para o laboratório, mas não protege contra a perda do host. Em produção, o backup iria para um local externo.
+
+## D12 — Permissões SMB amplas e NTFS restritivas
+
+- **Decisão:** no compartilhamento (SMB), `Authenticated Users` com Change e `Administrators` com Full Control. No NTFS, o grupo de cada departamento com Modify.
+- **Motivo:** a camada SMB oferece acesso à pasta compartilhada e as permissões NTFS controlam, na prática, o acesso por departamento. Assim a regra por grupo fica em um só lugar.
+
+## D13 — Mapeamento de unidades por GPO com Item-Level Targeting
+
+- **Decisão:** uma GPO de Preferences (`GPO-Mapeamento-Unidades`) mapeia `P:` para todos e `T:`, `R:` ou `F:` conforme o grupo do usuário.
+- **Resultado:** cada usuário recebe o `P:` e só a unidade do seu departamento, sem uma GPO por setor.
+
+## D14 — Compartilhamentos em `C:\Compartilhamentos`
+
+- **Decisão:** as pastas dos compartilhamentos (`TI`, `RH`, `Financeiro` e `Publico`) ficam em `C:\Compartilhamentos`.
+- **Observação:** o planejamento inicial previa `D:\Shares`.
+- **Motivo:** preferência de organização durante a implementação. Não houve uma justificativa técnica específica, nem limitação de armazenamento, para usar o volume `C:` em vez de outro caminho.
